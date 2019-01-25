@@ -1,0 +1,28 @@
+{
+  "name": "lnto-authserver",
+  "version": "1.0.0",
+  "description": "Learn and Teach Online Authentication Server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mashuq/lnto-authserver.git"
+  },
+  "author": "Mashuq Rahman",
+  "license": "Unlicense",
+  "bugs": {
+    "url": "https://github.com/mashuq/lnto-authserver/issues"
+  },
+  "homepage": "https://github.com/mashuq/lnto-authserver#readme",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "bluebird": "^3.5.3",
+    "jsonwebtoken": "^8.4.0",
+    "redis": "^2.8.0",
+    "restify": "^7.6.0",
+    "restify-plugins": "^1.6.0"
+  }
+}
