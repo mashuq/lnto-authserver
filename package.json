@@ -23,6 +23,7 @@
     "jsonwebtoken": "^8.4.0",
     "redis": "^2.8.0",
     "restify": "^7.6.0",
-    "restify-plugins": "^1.6.0"
+    "restify-plugins": "^1.6.0",
+    "uuid": "^3.3.2"
   }
 }

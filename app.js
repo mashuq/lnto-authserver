@@ -6,9 +6,14 @@ let redis = require('redis');
 let util = require('util');
 let client = redis.createClient();
 let server = restify.createServer();
-var bluebird = require("bluebird");
+let bluebird = require("bluebird");
+let uuidv4 = require('uuid/v4');
+let config = require('./config');
+const fs = require('fs');
 bluebird.promisifyAll(redis);
 
+let privateKEY  = fs.readFileSync('./private.key', 'utf8');
+let publicKEY  = fs.readFileSync('./public.key', 'utf8');   
 let saltRounds = 10;
 
 let restifyBodyParser = require('restify-plugins').bodyParser;
@@ -43,9 +48,11 @@ server.post('/createUser', (req, res, next) => {
     ).then(
         result => {
             let hashedPassword = result;
+            let uuid = uuidv4;
             return client.hmsetAsync(username, {
                 username: username,
                 password: hashedPassword,
+                uuid:uuid,
                 active: true
             });
         }
@@ -77,18 +84,41 @@ server.post('/getToken', (req, res, next) => {
 
     client.hgetallAsync(username).then(
         result => {
+            console.log("result 1"+result);
             if (null == result) {
                 throw "Invalid Username and Password";
             } else {
-                return (password, result.password);
+                return bcrypt.compare(password, result.password);
             }
         },
         error => {
             throw error;
         }
     ).then(
-        //Put code for jwt token generation
-    )
+        result=> {
+            console.log("result 2"+result);
+            if(result){
+                try{
+                    var token = jwt.sign({uuid:result.uuid}, privateKEY, config.signAndVerifyOptions);
+                    res.send(200, { auth: true, token: token });
+                }catch(error){
+                    return next(
+                        new errors.InternalServerError(error),
+                    );
+                }
+            }else{
+                return next(
+                    new "Invalid Username and Password",
+                );
+            }
+        },
+        error=>{
+            return next(
+                new errors.UnauthorizedError(error),
+            );
+        }
+    );
+    next();
 });
 
 client.on('connect', function () {
