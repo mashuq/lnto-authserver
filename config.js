@@ -1,9 +1,6 @@
 let config = {
-    signAndVerifyOptions : {
-        issuer:  "Learn and Teach Online",
-        subject:  "guybrush@learnandteach.online",
-        audience:  "http://localhost",
-        expiresIn:  "12h",
+    signAndVerifyOptions : {        
+        expiresIn:  "1h",
         algorithm:  "RS256"
     }
 }

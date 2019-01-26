@@ -12,8 +12,8 @@ let config = require('./config');
 const fs = require('fs');
 bluebird.promisifyAll(redis);
 
-let privateKEY  = fs.readFileSync('./private.key', 'utf8');
-let publicKEY  = fs.readFileSync('./public.key', 'utf8');   
+let privateKEY = fs.readFileSync('./private.key', 'utf8');
+let publicKEY = fs.readFileSync('./public.key', 'utf8');
 let saltRounds = 10;
 
 let restifyBodyParser = require('restify-plugins').bodyParser;
@@ -48,17 +48,17 @@ server.post('/createUser', (req, res, next) => {
     ).then(
         result => {
             let hashedPassword = result;
-            let uuid = uuidv4;
-            return client.hmsetAsync(username, {
+            let uuid = uuidv4();
+            let payload = {
                 username: username,
                 password: hashedPassword,
-                uuid:uuid,
+                uuid: uuid,
                 active: true
-            });
+            };
+            return client.hmsetAsync(username, payload);
         }
     ).then(
         result => {
-            console.log(result);
             res.send(201, "User Created");
         },
         error => {
@@ -81,13 +81,14 @@ server.post('/getToken', (req, res, next) => {
 
     let username = req.body.username;
     let password = req.body.password;
+    let uuid = null;
 
     client.hgetallAsync(username).then(
         result => {
-            console.log("result 1"+result);
             if (null == result) {
                 throw "Invalid Username and Password";
             } else {
+                uuid = result.uuid;
                 return bcrypt.compare(password, result.password);
             }
         },
@@ -95,29 +96,45 @@ server.post('/getToken', (req, res, next) => {
             throw error;
         }
     ).then(
-        result=> {
-            console.log("result 2"+result);
-            if(result){
-                try{
-                    var token = jwt.sign({uuid:result.uuid}, privateKEY, config.signAndVerifyOptions);
+        result => {
+            if (result) {
+                try {
+                    var payload = {uuid: uuid};
+                    var token = jwt.sign(payload, privateKEY, config.signAndVerifyOptions);
                     res.send(200, { auth: true, token: token });
-                }catch(error){
+                } catch (error) {
                     return next(
                         new errors.InternalServerError(error),
                     );
                 }
-            }else{
+            } else {
                 return next(
                     new "Invalid Username and Password",
                 );
             }
         },
-        error=>{
+        error => {
             return next(
                 new errors.UnauthorizedError(error),
             );
         }
     );
+    next();
+});
+
+server.post('/verifyToken', (req, res, next) => {
+    var token = req.headers['x-access-token'];
+    if (!token) {
+        return res.send(400, { auth: false, message: 'No token provided.' });
+    }
+
+    jwt.verify(token, publicKEY, config.signAndVerifyOptions, function (error, decoded) {
+        if (error) {
+            return res.send(500, { auth: false, message: 'Failed to authenticate token.' });
+        }
+        return res.send(200, decoded);
+    });
+
     next();
 });
 
