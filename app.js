@@ -1,4 +1,5 @@
 let restify = require('restify');
+let corsMiddleware = require('restify-cors-middleware')
 let errors = require('restify-errors');
 let jwt = require('jsonwebtoken');
 let bcrypt = require('bcryptjs');
@@ -19,11 +20,16 @@ let saltRounds = 10;
 let restifyBodyParser = require('restify-plugins').bodyParser;
 server.use(restifyBodyParser());
 
-function respond(req, res, next) {
-    res.send('hello ' + req.params.name);
-    next();
-}
-server.get('/hello/:name', respond);
+
+let cors = corsMiddleware({
+    preflightMaxAge: 5, //Optional
+    origins: ['http://localhost:3000'],
+    allowHeaders: ['x-access-token'],
+    exposeHeaders: ['API-Token-Expiry']
+})
+
+server.pre(cors.preflight);
+server.use(cors.actual);
 
 server.post('/createUser', (req, res, next) => {
     if (!req.body.username || !req.body.password) {
@@ -99,7 +105,7 @@ server.post('/getToken', (req, res, next) => {
         result => {
             if (result) {
                 try {
-                    var payload = {uuid: uuid};
+                    var payload = { uuid: uuid };
                     var token = jwt.sign(payload, privateKEY, config.signAndVerifyOptions);
                     res.send(200, { auth: true, token: token });
                 } catch (error) {
