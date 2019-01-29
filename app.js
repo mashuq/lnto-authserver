@@ -1,37 +1,38 @@
-let restify = require('restify');
-let corsMiddleware = require('restify-cors-middleware')
-let errors = require('restify-errors');
+const express = require('express')
+const app = express();
+let cors = require('cors')
+const port = 8080;
 let jwt = require('jsonwebtoken');
 let bcrypt = require('bcryptjs');
 let redis = require('redis');
-let util = require('util');
-let client = redis.createClient();
-let server = restify.createServer();
+let redisClient = redis.createClient();
 let bluebird = require("bluebird");
 let uuidv4 = require('uuid/v4');
 let config = require('./config');
-const fs = require('fs');
+let fs = require('fs');
+var bodyParser = require('body-parser')
 bluebird.promisifyAll(redis);
 
 let privateKEY = fs.readFileSync('./private.key', 'utf8');
 let publicKEY = fs.readFileSync('./public.key', 'utf8');
 let saltRounds = 10;
 
-let restifyBodyParser = require('restify-plugins').bodyParser;
-server.use(restifyBodyParser());
 
 
-let cors = corsMiddleware({
-    preflightMaxAge: 5, //Optional
-    origins: ['http://localhost:3000'],
-    allowHeaders: ['x-access-token'],
-    exposeHeaders: ['API-Token-Expiry']
-})
+var corsOptions = {
+    origin: 'http://localhost:3000',
+    optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+}
 
-server.pre(cors.preflight);
-server.use(cors.actual);
+app.use(cors(corsOptions));
+app.use(bodyParser.urlencoded({ extended: false }))
+app.use(bodyParser.json())
+app.listen(port, () => console.log(`Example app listening on port ${port}!`));
 
-server.post('/createUser', (req, res, next) => {
+  
+
+app.post('/createUser', async function (req, res) {
+    //console.log(req);
     if (!req.body.username || !req.body.password) {
         return next(
             new errors.InvalidContentError("Expects username and password"),
@@ -40,20 +41,10 @@ server.post('/createUser', (req, res, next) => {
     let username = req.body.username;
     let password = req.body.password;
 
-    client.hgetallAsync(username).then(
-        result => {
-            if (null == result) {
-                return bcrypt.hash(password, saltRounds)
-            } else {
-                throw "Username already taken";
-            }
-        },
-        error => {
-            throw error;
-        }
-    ).then(
-        result => {
-            let hashedPassword = result;
+    try {
+        let result = await redisClient.hgetallAsync(username);
+        if (null == result) {
+            hashedPassword = await bcrypt.hash(password, saltRounds);
             let uuid = uuidv4();
             let payload = {
                 username: username,
@@ -61,22 +52,23 @@ server.post('/createUser', (req, res, next) => {
                 uuid: uuid,
                 active: true
             };
-            return client.hmsetAsync(username, payload);
+            userCreation = await redisClient.hmsetAsync(username, payload);
+            res.status(200).json({ message: "User Created Succesfully" });
+        } else {
+            console.log("Username already taken");
+            res.status(422).json({ message: "Username already taken" });
         }
-    ).then(
-        result => {
-            res.send(201, "User Created");
-        },
-        error => {
-            return next(
-                new errors.InternalServerError(error),
-            );
-        }
-    );
-
-    next();
-
+    } catch (error) {
+        res.status(500).send({ data: String(error) });
+    }
 });
+
+
+redisClient.on('connect', function () {
+    console.log('redis server connected');
+});
+
+/*
 
 server.post('/getToken', (req, res, next) => {
     if (!req.body.username || !req.body.password) {
@@ -144,10 +136,9 @@ server.post('/verifyToken', (req, res, next) => {
     next();
 });
 
-client.on('connect', function () {
-    console.log('redis server connected');
-});
 
 server.listen(8080, function () {
     console.log('%s listening at %s', server.name, server.url);
 });
+
+*/
